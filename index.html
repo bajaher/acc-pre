@@ -24,6 +24,12 @@
 
 <main class="container">
 
+  <!-- شريط وضع معاينة المعلم -->
+  <div id="preview-bar" class="preview-bar hidden">
+    <span>👁 <b>وضع المعاينة</b> — أنت تستعرض الاختبار كما يراه الطالب، ولن تُحفظ النتيجة في الكشف.</span>
+    <button id="btn-exit-preview" class="minibtn">العودة للوحة المعلم</button>
+  </div>
+
   <!-- ============ شاشة الدخول والتسجيل ============ -->
   <section id="screen-gate">
     <div class="card hero">
@@ -94,28 +100,85 @@
       <span class="pill ok">صلاحيات كاملة</span>
     </div>
 
+    <button id="btn-preview-exam" class="btn btn-outline btn-block" style="margin-bottom:12px">
+      👁 دخول الاختبار كطالب (معاينة)
+    </button>
+
     <div class="admin-tabs" id="admin-tabs">
       <button class="atab active" data-tab="settings">⚙️ الإعدادات</button>
-      <button class="atab" data-tab="blueprint">🎯 الأوزان والأجزاء</button>
+      <button class="atab" data-tab="blueprint">🧩 بناء الاختبارات</button>
       <button class="atab" data-tab="questions">✏️ الأسئلة</button>
       <button class="atab" data-tab="results">📊 النتائج</button>
       <button class="atab" data-tab="bank">📚 بنك الأسئلة</button>
     </div>
 
-    <!-- تبويب الأوزان والأجزاء -->
+    <!-- تبويب بناء الاختبارات -->
     <div class="atab-pane hidden" id="pane-blueprint">
+
+      <!-- ===== (أ) اختبار الوحدة — الاختبار الفردي ===== -->
       <div class="card">
-        <b style="font-size:.9rem">🎯 أوزان الوحدات المعرفية وإعدادات كل اختبار جزئي</b>
-        <div class="adm-note">
-          الأوزان الافتراضية مأخوذة من وثيقة المعايير الأكاديمية لبرامج المحاسبة 2025 (NCAAA)، ومجموعها 100%.
-          يُبنى <b>الاختبار الشامل</b> على عمود «الوزن المستخدم»، ويمكنك تعديله أو استبعاد وحدة منه،
-          كما يمكنك تحديد عدد أسئلة ومدة <b>الاختبار الجزئي</b> لكل وحدة على حدة.
+        <div class="sec-head">
+          <div class="sec-icon unit">📗</div>
+          <div>
+            <b style="font-size:.95rem">اختبار الوحدة (الاختبار الفردي)</b>
+            <div class="adm-note" style="margin:2px 0 0">
+              اختر الوحدة المعرفية، ثم حدّد أنواع الأسئلة وعددها ومدة الاختبار الخاصة بها.
+            </div>
+          </div>
         </div>
-        <div id="bp-table" style="margin-top:12px;overflow-x:auto"></div>
+
+        <div class="field" style="margin-top:14px">
+          <label for="u-select">قائمة الوحدات المعرفية</label>
+          <select id="u-select" class="fillin"></select>
+          <small class="hint" id="u-avail"></small>
+        </div>
+
+        <div class="field">
+          <label>أنواع الأسئلة في هذه الوحدة</label>
+          <div id="u-types" class="chk-row"></div>
+          <small class="hint">تُظهر الأرقام عدد الأسئلة المتاحة من كل نوع في هذه الوحدة.</small>
+        </div>
+
+        <div class="adm-grid">
+          <div class="field"><label>عدد أسئلة اختبار الوحدة</label><input id="u-q" class="fillin" type="number" min="5" max="200"></div>
+          <div class="field"><label>مدة الاختبار (دقيقة)</label><input id="u-d" class="fillin" type="number" min="5" max="300"></div>
+        </div>
+
         <div class="adm-actions">
-          <button id="bp-save" class="btn btn-primary">💾 حفظ الأوزان والإعدادات</button>
+          <button id="u-save" class="btn btn-primary">💾 حفظ إعدادات هذه الوحدة</button>
+          <button id="u-reset" class="btn btn-ghost">↩ إعادة الافتراضي للوحدة</button>
+        </div>
+        <div class="adm-note" id="u-note"></div>
+
+        <div style="margin-top:16px">
+          <b style="font-size:.85rem">ملخص إعدادات جميع الوحدات</b>
+          <div id="u-table" style="margin-top:8px;overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <!-- ===== (ب) الاختبار الشامل ===== -->
+      <div class="card">
+        <div class="sec-head">
+          <div class="sec-icon comp">🎯</div>
+          <div>
+            <b style="font-size:.95rem">الاختبار الشامل (بأوزان معايير NCAAA)</b>
+            <div class="adm-note" style="margin:2px 0 0">
+              يوزّع الأسئلة على الوحدات بنسب أوزانها المعتمدة في وثيقة المعايير الأكاديمية لبرامج المحاسبة 2025.
+            </div>
+          </div>
+        </div>
+
+        <div class="adm-grid" style="margin-top:14px">
+          <div class="field"><label>إجمالي أسئلة الاختبار الشامل</label><input id="c-q" class="fillin" type="number" min="10" max="300"></div>
+          <div class="field"><label>المدة (دقيقة)</label><input id="c-d" class="fillin" type="number" min="10" max="300"></div>
+        </div>
+
+        <div id="bp-table" style="margin-top:6px;overflow-x:auto"></div>
+
+        <div class="adm-actions">
+          <button id="bp-save" class="btn btn-primary">💾 حفظ الأوزان والتوزيع</button>
           <button id="bp-reset" class="btn btn-ghost">↩ استعادة أوزان NCAAA</button>
-          <button id="bp-preview" class="btn btn-outline">👁 معاينة توزيع الاختبار الشامل</button>
+          <button id="bp-preview" class="btn btn-outline">👁 معاينة التوزيع النهائي</button>
         </div>
         <div class="adm-note" id="bp-note"></div>
         <div id="bp-preview-out" style="margin-top:10px;overflow-x:auto"></div>
@@ -251,8 +314,9 @@
       <b style="font-size:.9rem">اختر نمط الاختبار</b>
       <div id="mode-cards" class="mode-cards"></div>
       <div id="part-select-wrap" class="field" style="margin-top:12px;margin-bottom:0">
-        <label for="part-select">الجزء (الوحدة المعرفية)</label>
+        <label for="part-select">الوحدة المعرفية</label>
         <select id="part-select" class="fillin"></select>
+        <div id="part-types" class="qmeta" style="margin-top:8px"></div>
       </div>
     </div>
 
