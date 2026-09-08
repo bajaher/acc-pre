@@ -332,6 +332,7 @@
     </div>
 
     <button id="btn-start" class="btn btn-primary btn-block">🚀 ابدأ الاختبار الآن</button>
+    <button id="btn-guide" class="btn btn-outline btn-block" style="margin-top:10px">🧭 دليل الوحدات المعرفية التخصصية</button>
 
     <div class="card hidden" id="blueprint-card">
       <b style="font-size:.9rem">🎯 توزيع أسئلة الاختبار الشامل حسب أوزان المعيار</b>
@@ -356,6 +357,16 @@
       يمكنك التنقل بين الأسئلة، وتعليم أي سؤال للمراجعة، ومتابعة حالتك من لوحة الأسئلة.
       عند انتهاء الوقت يُسلَّم الاختبار تلقائيًا. بعد التسليم ستحصل على تقرير مفصل
       بالدرجة والأداء حسب الموضوعات مع شرح وافٍ لكل سؤال.
+    </div>
+  </section>
+
+  <!-- ============ شاشة دليل الوحدات المعرفية ============ -->
+  <section id="screen-guide" class="hidden">
+    <button id="btn-guide-back" class="btn btn-outline btn-block">⬅ العودة للرئيسية</button>
+    <div id="guide-body"></div>
+    <div class="card gu-src">
+      المصدر: مصفوفة نواتج التعلم للوحدات المعرفية لطلاب المحاسبة وفقًا لجاهزية — المعايير الأكاديمية
+      لبرامج المحاسبة 2025 (الإصدار 2.0)، هيئة تقويم التعليم والتدريب. إعداد: الدكتور محمد صالح باجاحر.
     </div>
   </section>
 
@@ -446,8 +457,10 @@
 </div>
 
 <script src="config.js"></script>
+<script src="units.js"></script>
 <script src="questions.js"></script>
 <script src="script.js"></script>
 <script src="admin.js"></script>
+<script src="guide.js"></script>
 </body>
 </html>

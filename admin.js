@@ -44,6 +44,7 @@ function applyAdminOverrides(){
     p.inComp   = o.inComp === false ? false : true;
     p.qCount   = o.questions || null;
     p.qDuration= o.duration || null;
+    p.qTypes   = (Array.isArray(o.qTypes) && o.qTypes.length) ? o.qTypes.slice() : null;
   });
 
   // حذف
@@ -91,6 +92,7 @@ function download(filename, text, mime){
 function renderAdmin(){
   $("#adm-who").textContent = (ADMIN? ADMIN.email : "") + " • " + CONFIG.examSubtitle;
   renderSettings();
+  renderUnitBuilder();
   renderBlueprint();
   renderQuestionForm();
   renderLocalQuestions();
@@ -108,79 +110,229 @@ function switchTab(name){
 }
 
 /* =====================================================================
-   تبويب الأوزان والأجزاء
+   (أ) بناء اختبار الوحدة — الاختبار الفردي
    ===================================================================== */
+function ovr(id){
+  const s = ADATA.settings = ADATA.settings || {};
+  const po = s.partOverrides = s.partOverrides || {};
+  po[id] = po[id] || {};
+  return po[id];
+}
+
+function renderUnitBuilder(keepSel){
+  const ps = partStats();
+  const sel = $("#u-select");
+  const cur = keepSel && sel.value ? sel.value : (sel.value || (ps.find(p=>p.ready)||ps[0]).id);
+  sel.innerHTML = ["general","major"].map(g=>{
+    const items = ps.filter(p=>p.group===g);
+    if(!items.length) return "";
+    return '<optgroup label="'+esc(groupLabel(g))+'">' + items.map(p=>
+      '<option value="'+p.id+'"'+(p.id===cur?" selected":"")+">"+
+      esc(p.id+" — "+p.name+" ("+p.officialWeight+"%)"+(p.ready? " • "+p.available+" سؤالًا" : " • لا توجد أسئلة"))+
+      "</option>").join("") + "</optgroup>";
+  }).join("");
+  renderUnitDetail();
+  renderUnitSummary();
+}
+
+function renderUnitDetail(){
+  const id = $("#u-select").value;
+  const p = partById(id) || {};
+  const st = partStats().find(x=>x.id===id) || {available:0};
+  const counts = partTypeCounts(id);
+  const cfg = partExamCfg(id);
+
+  $("#u-avail").textContent = st.available
+    ? "إجمالي الأسئلة المتاحة في هذه الوحدة: " + st.available + " • وزنها في المعيار: " + p.officialWeight + "%"
+    : "لا توجد أسئلة في هذه الوحدة بعد — أضفها من تبويب «الأسئلة».";
+
+  $("#u-types").innerHTML = TYPE_LIST.map(t=>{
+    const n = counts[t[0]] || 0;
+    const on = cfg.types.includes(t[0]);
+    return '<label'+(n? "" : ' style="opacity:.45"')+'><input type="checkbox" data-ut="'+t[0]+'"'+
+      (on?" checked":"")+(n?"":" disabled")+"> "+t[1]+" <b>("+n+")</b></label>";
+  }).join("");
+
+  $("#u-q").value = cfg.questions;
+  $("#u-d").value = cfg.duration;
+}
+
+function saveUnitSettings(){
+  const id = $("#u-select").value;
+  const types = [...$("#u-types").querySelectorAll("input[data-ut]")]
+                  .filter(i=>i.checked).map(i=>i.dataset.ut);
+  const q = parseInt($("#u-q").value,10);
+  const d = parseInt($("#u-d").value,10);
+  const avail = QUESTION_BANK.filter(x=>x.part===id && types.includes(x.type)).length;
+
+  if(!types.length){ note("u-note","اختر نوع سؤال واحدًا على الأقل لهذه الوحدة.","bad"); return; }
+  if(isNaN(q)||q<5){ note("u-note","عدد الأسئلة يجب ألا يقل عن 5.","bad"); return; }
+  if(isNaN(d)||d<5){ note("u-note","المدة يجب ألا تقل عن 5 دقائق.","bad"); return; }
+
+  const o = ovr(id);
+  o.qTypes = types; o.questions = q; o.duration = d;
+  saveAdminData(ADATA);
+  applyAdminOverrides();
+  renderUnitDetail(); renderUnitSummary();
+
+  note("u-note", avail >= q
+    ? "✔ تم حفظ إعدادات وحدة «"+partName(id)+"»: "+q+" سؤالًا في "+d+" دقيقة."
+    : "✔ تم الحفظ، لكن المتاح من الأنواع المختارة "+avail+" سؤالًا فقط، وسيُبنى الاختبار بها.",
+    avail >= q ? "ok" : "bad");
+}
+
+function resetUnitSettings(){
+  const id = $("#u-select").value;
+  const o = ovr(id);
+  delete o.qTypes; delete o.questions; delete o.duration;
+  saveAdminData(ADATA); applyAdminOverrides();
+  renderUnitDetail(); renderUnitSummary();
+  note("u-note","تمت إعادة إعدادات الوحدة إلى الافتراضي.","ok");
+}
+
+function renderUnitSummary(){
+  const ps = partStats();
+  const head = ["الوحدة","الأسئلة المتاحة","أنواع الأسئلة","عدد أسئلة الاختبار","المدة"];
+  const body = ["general","major"].map(g=>{
+    const items = ps.filter(p=>p.group===g);
+    if(!items.length) return "";
+    return "<tr class='grp'><td colspan='5'>"+esc(groupLabel(g))+"</td></tr>" + items.map(p=>{
+      const cfg = partExamCfg(p.id);
+      const used = cfg.types.filter(t=>QUESTION_BANK.some(q=>q.part===p.id && q.type===t));
+      return "<tr"+(p.ready?"":" class='muted'")+"><td>"+esc(p.id+" — "+p.name)+"</td>"+
+        "<td>"+(p.available||"—")+"</td>"+
+        "<td>"+(p.ready? used.map(t=>TYPE_NAMES[t]).join("، ") : "—")+"</td>"+
+        "<td>"+(p.ready? Math.min(cfg.questions, p.available) : "—")+"</td>"+
+        "<td>"+(p.ready? cfg.duration+" د" : "—")+"</td></tr>";
+    }).join("");
+  }).join("");
+  $("#u-table").innerHTML =
+    "<table class='res'><thead><tr>"+head.map(h=>"<th>"+h+"</th>").join("")+"</tr></thead><tbody>"+
+    body+"</tbody></table>";
+}
+
+/* =====================================================================
+   (ب) بناء الاختبار الشامل — الأوزان وعدد الأسئلة
+   ===================================================================== */
+function compTotal(){
+  const v = parseInt($("#c-q").value,10);
+  return (isNaN(v)||v<10) ? CONFIG.modes.full.questions : v;
+}
+
 function renderBlueprint(){
+  $("#c-q").value = CONFIG.modes.full.questions;
+  $("#c-d").value = CONFIG.modes.full.duration;
+
   const ps = partStats();
   const head = ["الوحدة المعرفية (SKU)","وزن NCAAA","الوزن المستخدم %","ضمن الشامل",
-                "الأسئلة المتاحة","أسئلة الاختبار الجزئي","المدة (دقيقة)"];
+                "الأسئلة المتاحة","عدد أسئلة الاختبار"];
+  const bpBody = ["general","major"].map(g=>{
+    const items = ps.filter(p=>p.group===g);
+    if(!items.length) return "";
+    const gw = items.reduce((s,p)=>s+p.officialWeight,0);
+    return "<tr class='grp'><td colspan='6'>"+esc(groupLabel(g))+" — وزنها في المعيار "+gw+"%</td></tr>" +
+      items.map(p=>{
+        const dis = p.ready ? "" : " disabled";
+        return "<tr"+(p.ready?"":" class='muted'")+"><td>"+esc(p.id+" — "+p.name)+"</td>"+
+          "<td>"+p.officialWeight+"%</td>"+
+          "<td><input class='cell-in' type='number' min='0' max='100' step='0.5' data-w='"+p.id+"' value='"+p.weight+"'"+dis+"></td>"+
+          "<td><input type='checkbox' data-c='"+p.id+"'"+(p.inComp!==false?" checked":"")+dis+"></td>"+
+          "<td>"+(p.available||"—")+"</td>"+
+          "<td class='bp-n' data-n='"+p.id+"'>—</td></tr>";
+      }).join("");
+  }).join("");
   $("#bp-table").innerHTML =
     "<table class='res'><thead><tr>"+head.map(h=>"<th>"+h+"</th>").join("")+"</tr></thead><tbody>"+
-    ps.map(p=>{
-      const dis = p.ready ? "" : " disabled";
-      return "<tr><td>"+esc(p.id+" — "+p.name)+"</td>"+
-        "<td>"+p.officialWeight+"%</td>"+
-        "<td><input class='cell-in' type='number' min='0' max='100' step='0.5' data-w='"+p.id+"' value='"+p.weight+"'></td>"+
-        "<td><input type='checkbox' data-c='"+p.id+"'"+(p.inComp!==false?" checked":"")+dis+"></td>"+
-        "<td>"+(p.available||"—")+"</td>"+
-        "<td><input class='cell-in' type='number' min='5' max='200' data-q='"+p.id+"' value='"+
-            (p.qCount||CONFIG.modes.part.questions)+"'"+dis+"></td>"+
-        "<td><input class='cell-in' type='number' min='5' max='300' data-d='"+p.id+"' value='"+
-            (p.qDuration||CONFIG.modes.part.duration)+"'"+dis+"></td></tr>";
-    }).join("")+
+    bpBody+
     "<tr><td><b>المجموع</b></td><td><b>"+ps.reduce((s,p)=>s+p.officialWeight,0)+
     "%</b></td><td><b id='bp-sum'>"+ps.reduce((s,p)=>s+p.weight,0)+
-    "%</b></td><td colspan='4'></td></tr></tbody></table>";
+    "%</b></td><td></td><td></td><td><b id='bp-total'>—</b></td></tr></tbody></table>";
 
-  $("#bp-table").querySelectorAll("[data-w]").forEach(inp=>
-    inp.addEventListener("input", ()=>{
-      const sum = [...$("#bp-table").querySelectorAll("[data-w]")]
-        .reduce((s,i)=> s + (parseFloat(i.value)||0), 0);
-      const el = $("#bp-sum");
-      el.textContent = (Math.round(sum*10)/10) + "%";
-      el.style.color = Math.abs(sum-100) < 0.01 ? "var(--ok)" : "var(--warn)";
-    }));
+  const recalc = ()=>{
+    // حساب لحظي للتوزيع من القيم المكتوبة في الجدول (دون حفظ)
+    const rows = CONFIG.parts.map(p=>{
+      const wEl = $("#bp-table").querySelector("[data-w='"+p.id+"']");
+      const cEl = $("#bp-table").querySelector("[data-c='"+p.id+"']");
+      const st  = ps.find(x=>x.id===p.id);
+      return { id:p.id, w: parseFloat(wEl.value)||0, on: cEl.checked && st.ready, available: st.available };
+    });
+    const sumW = rows.reduce((s,r)=> s + (r.on? r.w:0), 0);
+    const el = $("#bp-sum");
+    const allW = rows.reduce((s,r)=>s+r.w,0);
+    el.textContent = (Math.round(allW*10)/10)+"%";
+    el.style.color = Math.abs(allW-100)<0.01 ? "var(--ok)" : "var(--warn)";
+
+    const total = compTotal();
+    let plan = rows.map(r=>{
+      const ideal = (r.on && sumW) ? total*r.w/sumW : 0;
+      return { id:r.id, ideal, available:r.available, on:r.on, n: r.on? Math.min(r.available, Math.floor(ideal)) : 0 };
+    });
+    let assigned = plan.reduce((s,x)=>s+x.n,0), guard=0;
+    while(assigned < total && guard++ < 2000){
+      const cand = plan.filter(x=>x.on && x.n<x.available).sort((a,b)=>(b.ideal-b.n)-(a.ideal-a.n))[0];
+      if(!cand) break;
+      cand.n++; assigned++;
+    }
+    plan.forEach(x=>{
+      const td = $("#bp-table").querySelector("[data-n='"+x.id+"']");
+      if(td) td.textContent = x.on ? x.n : "—";
+    });
+    $("#bp-total").textContent = assigned + (assigned<total ? " / "+total+" (نقص أسئلة)" : "");
+  };
+
+  $("#bp-table").querySelectorAll("[data-w],[data-c]").forEach(inp=>{
+    inp.addEventListener("input", recalc);
+    inp.addEventListener("change", recalc);
+  });
+  $("#c-q").oninput = recalc;
+  recalc();
 }
 
 function saveBlueprint(){
   const s = ADATA.settings = ADATA.settings || {};
-  const po = s.partOverrides = s.partOverrides || {};
+  s.modes = s.modes || {};
+  const cq = parseInt($("#c-q").value,10), cd = parseInt($("#c-d").value,10);
+  s.modes.full = {
+    questions: (isNaN(cq)||cq<10) ? CONFIG.modes.full.questions : cq,
+    duration:  (isNaN(cd)||cd<10) ? CONFIG.modes.full.duration  : cd
+  };
+  s.modes.part = s.modes.part || CONFIG.modes.part;
+
   let sum = 0;
   CONFIG.parts.forEach(p=>{
-    const w  = parseFloat($("#bp-table").querySelector("[data-w='"+p.id+"']").value);
-    const c  = $("#bp-table").querySelector("[data-c='"+p.id+"']").checked;
-    const q  = parseInt($("#bp-table").querySelector("[data-q='"+p.id+"']").value,10);
-    const d  = parseInt($("#bp-table").querySelector("[data-d='"+p.id+"']").value,10);
-    po[p.id] = {
-      weight: (isNaN(w)||w<0) ? p.officialWeight : w,
-      inComp: !!c,
-      questions: (isNaN(q)||q<5) ? null : q,
-      duration:  (isNaN(d)||d<5) ? null : d
-    };
-    sum += po[p.id].weight;
+    const w = parseFloat($("#bp-table").querySelector("[data-w='"+p.id+"']").value);
+    const c = $("#bp-table").querySelector("[data-c='"+p.id+"']").checked;
+    const o = ovr(p.id);
+    o.weight = (isNaN(w)||w<0) ? p.officialWeight : w;
+    o.inComp = !!c;
+    sum += o.weight;
   });
   saveAdminData(ADATA);
   applyAdminOverrides();
   renderBlueprint();
   const msg = Math.abs(sum-100) < 0.01
     ? "✔ تم الحفظ. مجموع الأوزان 100% مطابق للمعيار."
-    : "✔ تم الحفظ. مجموع الأوزان " + (Math.round(sum*10)/10) + "% — سيُعاد توحيدها تلقائيًا عند بناء الاختبار الشامل.";
+    : "✔ تم الحفظ. مجموع الأوزان " + (Math.round(sum*10)/10) + "% — سيُعاد توحيدها تلقائيًا على الوحدات المشمولة.";
   note("bp-note", msg, "ok");
   previewBlueprint();
 }
 
 function resetBlueprint(){
-  if(!confirm("استعادة أوزان NCAAA الأصلية وإلغاء تخصيصك لكل الوحدات؟")) return;
-  if(ADATA.settings) delete ADATA.settings.partOverrides;
+  if(!confirm("استعادة أوزان NCAAA الأصلية وإعادة شمول جميع الوحدات؟")) return;
+  const po = (ADATA.settings && ADATA.settings.partOverrides) || {};
+  Object.keys(po).forEach(id=>{ delete po[id].weight; delete po[id].inComp; }); // نُبقي إعدادات اختبار الوحدة
   saveAdminData(ADATA);
   applyAdminOverrides();
   renderBlueprint();
-  note("bp-note","تمت استعادة أوزان المعيار الأصلية.","ok");
+  note("bp-note","تمت استعادة أوزان المعيار الأصلية (إعدادات اختبارات الوحدات لم تتأثر).","ok");
 }
 
 function previewBlueprint(){
   const total = CONFIG.modes.full.questions;
   const plan = weightedPlan(total);
+  if(plan.total !== undefined && plan.total < total){
+    note("bp-note","تنبيه: أمكن توفير "+plan.total+" سؤالًا فقط من أصل "+total+" لنقص رصيد الأسئلة في بعض الوحدات.","bad");
+  }
   if(!plan.length){ $("#bp-preview-out").innerHTML = "<div class='adm-note'>لا توجد وحدات جاهزة ضمن الاختبار الشامل.</div>"; return; }
   const cov = planCoverage();
   $("#bp-preview-out").innerHTML =
@@ -224,7 +376,7 @@ function saveSettings(){
     const v = parseInt($("#"+id).value,10);
     return (isNaN(v)||v<min||v>max) ? dflt : v;
   };
-  const types = [...$("#s-types").querySelectorAll("input:checked")].map(i=>i.value);
+  const types = [...$("#s-types").querySelectorAll("input")].filter(i=>i.checked).map(i=>i.value);
   if(!types.length){ note("s-note","يجب اختيار نوع واحد على الأقل من أنواع الأسئلة.","bad"); return; }
 
   const s = ADATA.settings = ADATA.settings || {};
@@ -352,6 +504,8 @@ function saveQuestion(){
   clearQForm();
   renderLocalQuestions();
   renderBank();
+  renderUnitBuilder(true);   // تحديث عدّادات الأنواع بعد إضافة سؤال
+  renderBlueprint();
 }
 
 function rebuildBank(){
@@ -589,6 +743,10 @@ document.addEventListener("DOMContentLoaded", ()=>{
   $("#s-save").addEventListener("click", saveSettings);
   $("#s-reset").addEventListener("click", resetSettings);
   $("#s-export").addEventListener("click", exportConfig);
+
+  $("#u-select").addEventListener("change", renderUnitDetail);
+  $("#u-save").addEventListener("click", saveUnitSettings);
+  $("#u-reset").addEventListener("click", resetUnitSettings);
 
   $("#bp-save").addEventListener("click", saveBlueprint);
   $("#bp-reset").addEventListener("click", resetBlueprint);
